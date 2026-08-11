@@ -23,16 +23,22 @@ Nexus (k8s)  --push-->  GitHub (this repo)  <--fetch--  client's browser
 Three branches, each with one job. The split is not cosmetic: the two published files have
 genuinely incompatible write models.
 
-| Branch      | Contents                     | Written by        | How                                  |
-| ----------- | ---------------------------- | ----------------- | ------------------------------------ |
-| `main`      | this site's source           | developers        | normal commits, Pages builds from it |
-| `data`      | `status.json`                | Nexus             | force-push, single orphan commit     |
-| `incidents` | `incidents.json`, `history/` | Nexus or a person | normal commits, SHA conflict-checked |
+| Branch      | Contents           | Written by        | How                                  |
+| ----------- | ------------------ | ----------------- | ------------------------------------ |
+| `main`      | this site's source | developers        | normal commits, Pages builds from it |
+| `data`      | `status.json`      | Nexus             | force-push, single orphan commit     |
+| `incidents` | `incidents.json`   | Nexus or a person | normal commits, SHA conflict-checked |
 
-**Why `status.json` is force-pushed.** It carries a heartbeat, because `generatedAt` is how the
-page detects that publishing has stopped, and that timestamp only advances when something writes.
-A five-minute heartbeat as ordinary commits would be roughly 105,000 commits a year. Force-pushing
-a single orphan commit keeps the branch at exactly one commit forever.
+**This page reports the present, not the past.** There is deliberately no uptime history and no
+90-day graph. Clients come here to find out whether something is broken right now; historical
+downtime percentages answer a question they are not asking, and publishing them invites an argument
+about arithmetic instead of telling anyone what is happening.
+
+**Why `status.json` is force-pushed.** It carries a heartbeat, because `generatedAt` is how the page
+detects that publishing has stopped, and that timestamp only advances when something writes. A
+five-minute heartbeat as ordinary commits would be roughly 105,000 commits a year. Force-pushing a
+single orphan commit keeps the branch at exactly one commit forever, and since no history is
+published, nothing is lost by discarding it.
 
 **Why `incidents.json` is not.** Editing it by hand in the GitHub web UI is the break-glass path
 for posting an incident when Nexus itself is unreachable. Force-push has no conflict detection, so
