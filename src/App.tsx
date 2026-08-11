@@ -119,8 +119,8 @@ export function App() {
   // Resolved once, so the rows and the headline above them cannot contradict each other. Depends on
   // `statusDocument` rather than the `services` local for the same empty-array-identity reason.
   const rows = useMemo(
-    () => resolveRows(statusDocument?.services ?? [], openWindows, overrides, isStale),
-    [statusDocument, openWindows, overrides, isStale],
+    () => resolveRows(statusDocument?.services ?? [], openWindows, overrides, isStale, active),
+    [statusDocument, openWindows, overrides, isStale, active],
   );
   const overall = useMemo(() => deriveOverall(rows), [rows]);
 

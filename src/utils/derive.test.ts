@@ -218,6 +218,80 @@ describe('activeOverrides', () => {
   });
 });
 
+describe('an open incident implies its services state', () => {
+  const service: PublicServiceStatus = {
+    key: 'imaging',
+    label: 'Imaging',
+    state: 'Operational',
+  };
+
+  const affecting = (impact: Incident['impact']) =>
+    incident({ impact, affectedServiceKeys: ['imaging'] });
+
+  it('shows a service as degraded while a minor incident names it', () => {
+    // The bug this fixes: an incident about Imaging alongside an Imaging row reading Operational,
+    // which tells a client two opposite things at once.
+    expect(displayStateFor(service, [], [], false, [affecting('Minor')])).toBe('Degraded');
+  });
+
+  it.each([
+    ['Major' as const, 'Outage'],
+    ['Critical' as const, 'Outage'],
+  ])('shows a service as outage for %s impact', (impact, expected) => {
+    expect(displayStateFor(service, [], [], false, [affecting(impact)])).toBe(expected);
+  });
+
+  it('leaves the state alone for an informational incident', () => {
+    expect(displayStateFor(service, [], [], false, [affecting('None')])).toBe('Operational');
+  });
+
+  it('never downgrades a worse live state', () => {
+    // A Minor incident filed against a service Nexus can see is down must not move the page from
+    // Outage to Degraded. Severity is a floor, not a replacement.
+    const down: PublicServiceStatus = { ...service, state: 'Outage' };
+
+    expect(displayStateFor(down, [], [], false, [affecting('Minor')])).toBe('Outage');
+  });
+
+  it('speaks for a service whose health is unknown', () => {
+    expect(displayStateFor(service, [], [], true, [affecting('Major')])).toBe('Outage');
+  });
+
+  it('outranks an open maintenance window', () => {
+    expect(
+      displayStateFor(service, [window({ affectedServiceKeys: ['imaging'] })], [], false, [
+        affecting('Major'),
+      ]),
+    ).toBe('Outage');
+  });
+
+  it('yields to an explicit operator override', () => {
+    const overrides = [override({ serviceKey: 'imaging', state: 'Operational' })];
+
+    expect(displayStateFor(service, [], overrides, false, [affecting('Major')])).toBe(
+      'Operational',
+    );
+  });
+
+  it('ignores an incident naming a different service', () => {
+    const elsewhere = incident({ impact: 'Major', affectedServiceKeys: ['reporting'] });
+
+    expect(displayStateFor(service, [], [], false, [elsewhere])).toBe('Operational');
+  });
+
+  it('takes the worst when several incidents name one service', () => {
+    const both = [affecting('Minor'), affecting('Critical')];
+
+    expect(displayStateFor(service, [], [], false, both)).toBe('Outage');
+  });
+
+  it('reverts once the incident is resolved, with nothing to clean up', () => {
+    // openIncidents() filters resolved ones out, so an empty list is what a resolved incident
+    // produces. No expiry to manage and no override left behind.
+    expect(displayStateFor(service, [], [], false, [])).toBe('Operational');
+  });
+});
+
 describe('deriveOverall', () => {
   const row = (key: string, state: RowState): ServiceRow => ({
     service: { key, label: key, state: 'Operational' },

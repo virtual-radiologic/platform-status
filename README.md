@@ -104,9 +104,24 @@ from the window's start until some unrelated write. Windows travel as start and 
 page overlays them at render.
 
 **A service row resolves four sources, in this order:** an unexpired operator override, then an open
-maintenance window, then the published health, then unknown. An override outranks maintenance
-because it is the later deliberate act: if something breaks during a planned window, an operator
-saying "this is an outage" should not be masked by a window scheduled hours earlier.
+incident naming the service, then an open maintenance window, then the published health (or unknown
+when stale). An override outranks the rest because it is the most deliberate act. An incident
+outranks maintenance because something is actually wrong, which matters more to a client than the
+fact that work was planned.
+
+**An open incident sets the state of the services it names**, derived from its impact: Major or
+Critical reads as an outage, Minor as degraded, and None changes nothing (that impact exists for an
+informational notice claiming no service is affected).
+
+Against health it is a **floor, not a replacement**: the worse of the two wins. A Minor incident
+filed against a service Nexus can see is genuinely down must not move the page from Outage down to
+Degraded, which is the one direction a status page should never travel on its own.
+
+This is derived rather than set by hand because the alternative produced a page that contradicted
+itself: an incident about Imaging sitting above an Imaging row reading "Operational". Expecting
+whoever is mid-outage to remember a second action was not a plan. It also needs no expiry, unlike a
+manual override: the implied state lasts exactly as long as the incident is open and clears the
+moment it is resolved, so it cannot drift out of step with what the incident says.
 
 **Operator overrides live in `incidents.json`, not `status.json`.** Nexus force-pushes the status
 document, so a hand edit there is discarded on the next publish. The override exists for the case
