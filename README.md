@@ -95,12 +95,33 @@ npm run build        # typecheck then production build
 **Maintenance is not a published state.** A window opens and closes on a wall-clock boundary with
 no health change to trigger a publish, so a published "under maintenance" value would be wrong
 from the window's start until some unrelated write. Windows travel as start and end times and the
-page overlays them at render. The same reasoning keeps the overall indicator health-derived.
+page overlays them at render.
+
+**A service row resolves four sources, in this order:** an unexpired operator override, then an open
+maintenance window, then the published health, then unknown. An override outranks maintenance
+because it is the later deliberate act: if something breaks during a planned window, an operator
+saying "this is an outage" should not be masked by a window scheduled hours earlier.
+
+**Operator overrides live in `incidents.json`, not `status.json`.** Nexus force-pushes the status
+document, so a hand edit there is discarded on the next publish. The override exists for the case
+nothing else covers: the platform is entirely down, so nothing is publishing, so the status document
+ages out and every service reads as unknown. At that moment an operator needs to state that a service
+is down as a fact rather than only as incident prose, and `incidents.json` is the only file they can
+still write. Overrides carry a **required** `expiresAt`, because an override with no end is how a
+service stays pinned to an outage long after it recovered, once whoever set it went off to fix the
+real problem.
 
 **A stale document reports nothing, not its last value.** When `generatedAt` is older than
 `staleAfterSeconds`, every service drops to "Status unknown" and the headline drops to "Current
 status unavailable". Continuing to show green from a document nobody is updating would be the
-single worst failure this page could have, so it is asserted in `src/App.test.tsx`.
+single worst failure this page could have, so it is asserted in `src/App.test.tsx`. An unexpired
+override is the one thing that survives staleness, which is the entire point of it.
+
+**The headline is derived from the resolved rows, not read from the document's `overall`.** The
+published value is right for the ordinary fresh case and is still there for anyone reading the JSON
+directly, but it cannot know about an override or about its own staleness, and trusting it would let
+the page announce an all-clear above rows saying otherwise. Any unknown row also blocks an all-clear:
+claiming everything is fine while some rows are unknown asserts more than the page knows.
 
 **A failed poll upstream never becomes an outage here.** Nexus holds the last published state when
 it cannot poll, because a poll failure describes Nexus, not the service. The uncertainty is carried

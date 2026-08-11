@@ -87,11 +87,39 @@ export interface MaintenanceWindow {
   endsAt: string;
 }
 
-/** The human-authored half of the feed, written far less often than the status document. */
+/**
+ * An operator's assertion about one service's state, overriding published health.
+ *
+ * This is the mechanism for the case nothing else covers: the platform is entirely down, so Nexus
+ * is not publishing, so `status.json` ages out and every service reads as unknown. An operator can
+ * still write this file, so they can still tell clients a service is down as a fact rather than
+ * only as incident prose.
+ *
+ * `expiresAt` is required rather than optional on purpose. An override with no end is how a service
+ * stays pinned to an outage long after it recovered, because whoever set it went off to fix the real
+ * problem. Expiry means a forgotten override heals itself.
+ */
+export interface ServiceOverride {
+  serviceKey: string;
+  state: PublicServiceState;
+  /** ISO 8601. */
+  setAt: string;
+  /** ISO 8601. After this instant the override is ignored. */
+  expiresAt: string;
+}
+
+/**
+ * The human-authored half of the feed, written far less often than the status document.
+ *
+ * Everything here is client-visible. There is no internal-notes field and none should be added: a
+ * field operators treat as private, in a file published to a public page, is a leak waiting to
+ * happen.
+ */
 export interface IncidentDocument {
   schemaVersion: number;
   generatedAt: string;
   incidents: Incident[];
+  serviceOverrides: ServiceOverride[];
   maintenance: MaintenanceWindow[];
 }
 

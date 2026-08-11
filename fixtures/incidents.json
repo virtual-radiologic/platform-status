@@ -29,6 +29,7 @@
       ]
     }
   ],
+  "serviceOverrides": [],
   "maintenance": [
     {
       "id": "2026-08-16-reporting-upgrade",

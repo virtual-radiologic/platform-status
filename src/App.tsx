@@ -8,9 +8,12 @@ import { ServiceList } from './components/ServiceList';
 import { fetchStatusFeed, type FeedFailure, type StatusFeed } from './services/statusFeed';
 import {
   activeMaintenance,
+  activeOverrides,
   assessFreshness,
+  deriveOverall,
   openIncidents,
   recentlyResolvedIncidents,
+  resolveRows,
   upcomingMaintenance,
 } from './utils/derive';
 import { absoluteTime, relativeTime } from './utils/time';
@@ -108,6 +111,18 @@ export function App() {
     () => recentlyResolvedIncidents(incidentDocument?.incidents ?? [], now),
     [incidentDocument, now],
   );
+  const overrides = useMemo(
+    () => activeOverrides(incidentDocument?.serviceOverrides ?? [], now),
+    [incidentDocument, now],
+  );
+
+  // Resolved once, so the rows and the headline above them cannot contradict each other. Depends on
+  // `statusDocument` rather than the `services` local for the same empty-array-identity reason.
+  const rows = useMemo(
+    () => resolveRows(statusDocument?.services ?? [], openWindows, overrides, isStale),
+    [statusDocument, openWindows, overrides, isStale],
+  );
+  const overall = useMemo(() => deriveOverall(rows), [rows]);
 
   const subtitle = (() => {
     if (freshness?.generatedAt == null) {
@@ -133,11 +148,7 @@ export function App() {
         </div>
       </header>
 
-      <OverallHero
-        overall={statusDocument?.overall ?? null}
-        isStale={isStale}
-        subtitle={subtitle}
-      />
+      <OverallHero overall={overall} subtitle={subtitle} />
 
       {feed !== null && feed.status.ok === false && (
         <Notice tone="error" title="Live status is unavailable">
@@ -152,7 +163,8 @@ export function App() {
         <Notice tone="warning" title="This status may be out of date">
           The last published update was {relativeTime(freshness.generatedAt ?? now, now)}, which is
           longer than the expected {statusDocument.staleAfterSeconds}-second interval. Service
-          states are shown as unknown until publishing resumes.
+          states are shown as unknown until publishing resumes
+          {overrides.length > 0 ? ', except where a status has been confirmed manually' : ''}.
         </Notice>
       )}
 
@@ -170,7 +182,7 @@ export function App() {
 
       <section className="section">
         <h2 className="section__heading">Services</h2>
-        <ServiceList services={services} openWindows={openWindows} isStale={isStale} />
+        <ServiceList rows={rows} />
       </section>
 
       <section className="section">

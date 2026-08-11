@@ -15,21 +15,20 @@ const HEADLINES = new Map<PublicOverallState, Headline>([
 ]);
 
 interface OverallHeroProps {
-  /** Null when no usable document was read, which reads as unknown rather than as healthy. */
-  overall: PublicOverallState | null;
   /**
-   * True when the document is older than its own tolerance. A stale document's states describe
-   * the past, so the headline drops to unknown: continuing to announce "all systems operational"
-   * from a document nobody has updated is the single worst thing this page could do.
+   * The headline state, derived by the caller from the resolved rows rather than read from the
+   * published document. Null means "cannot say", which covers no readable document, a stale one,
+   * and a mix where some rows are unknown. Claiming an all-clear in any of those cases would assert
+   * more than the page actually knows.
    */
-  isStale: boolean;
+  overall: PublicOverallState | null;
   subtitle: string;
 }
 
-export function OverallHero({ overall, isStale, subtitle }: OverallHeroProps) {
+export function OverallHero({ overall, subtitle }: OverallHeroProps) {
   // An overall value this bundle does not recognize is treated the same as none at all, so a feed
   // that gains a state resolves to "unavailable" rather than to a blank headline.
-  const known = overall === null || isStale ? undefined : HEADLINES.get(overall);
+  const known = overall === null ? undefined : HEADLINES.get(overall);
   const iconState: IconState = known?.state ?? 'Unknown';
   const headline = known?.headline ?? 'Current status unavailable';
   const descriptor = describeState(iconState);

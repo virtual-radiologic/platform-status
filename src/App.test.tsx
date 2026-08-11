@@ -39,8 +39,18 @@ function incidents(overrides: Partial<IncidentDocument> = {}): IncidentDocument 
     schemaVersion: 1,
     generatedAt: isoSecondsAgo(30),
     incidents: [],
+    serviceOverrides: [],
     maintenance: [],
     ...overrides,
+  };
+}
+
+function serviceOverride(serviceKey: string, state: 'Operational' | 'Degraded' | 'Outage') {
+  return {
+    serviceKey,
+    state,
+    setAt: isoSecondsAgo(120),
+    expiresAt: new Date(Date.now() + 8 * 3_600_000).toISOString(),
   };
 }
 
@@ -104,11 +114,39 @@ describe('degraded platform', () => {
   });
 
   it('distinguishes a partial outage from a major one', async () => {
-    fetchStatusFeed.mockResolvedValue(feed(status({ overall: 'PartialOutage' })));
+    // The headline is derived from the rows, not read from the document's own `overall`. That is
+    // what lets it stay consistent with overrides and staleness, so the states are what drive it.
+    fetchStatusFeed.mockResolvedValue(
+      feed(
+        status({
+          services: [
+            { key: 'imaging', label: 'Image Ingest', state: 'Outage' },
+            { key: 'reporting', label: 'Reporting', state: 'Operational' },
+          ],
+        }),
+      ),
+    );
 
     render(<App />);
 
     expect(await screen.findByText('Partial platform outage')).toBeInTheDocument();
+  });
+
+  it('reports a major outage when every service is down', async () => {
+    fetchStatusFeed.mockResolvedValue(
+      feed(
+        status({
+          services: [
+            { key: 'imaging', label: 'Image Ingest', state: 'Outage' },
+            { key: 'reporting', label: 'Reporting', state: 'Outage' },
+          ],
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Major platform outage')).toBeInTheDocument();
   });
 });
 
@@ -198,6 +236,77 @@ describe('maintenance', () => {
     expect(await screen.findByText('Order management upgrade')).toBeInTheDocument();
     expect(screen.queryByText('Under maintenance')).not.toBeInTheDocument();
     expect(screen.queryByText('Maintenance in progress')).not.toBeInTheDocument();
+  });
+});
+
+describe('operator overrides', () => {
+  it('shows an overridden state even though the document is stale', async () => {
+    // The scenario this exists for: the platform is entirely down, so nothing is publishing, so the
+    // status document has aged out. An operator can still write the incident file, and what they say
+    // there has to reach the page.
+    fetchStatusFeed.mockResolvedValue(
+      feed(
+        status({ generatedAt: isoSecondsAgo(3600) }),
+        incidents({ serviceOverrides: [serviceOverride('reporting', 'Outage')] }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Outage')).toBeInTheDocument();
+    expect(screen.getByText('Status unknown')).toBeInTheDocument();
+    expect(screen.getByText('Partial platform outage')).toBeInTheDocument();
+  });
+
+  it('ignores an expired override rather than pinning a recovered service', async () => {
+    const expired = {
+      ...serviceOverride('reporting', 'Outage'),
+      expiresAt: isoSecondsAgo(60),
+    };
+    fetchStatusFeed.mockResolvedValue(feed(status(), incidents({ serviceOverrides: [expired] })));
+
+    render(<App />);
+
+    expect(await screen.findByText('All systems operational')).toBeInTheDocument();
+    expect(screen.queryByText('Outage')).not.toBeInTheDocument();
+  });
+
+  it('lets an override outrank an open maintenance window', async () => {
+    const openWindow = {
+      id: 'w1',
+      title: 'Reporting platform upgrade',
+      body: '',
+      affectedServiceKeys: ['reporting'],
+      startsAt: isoSecondsAgo(600),
+      endsAt: new Date(Date.now() + 3_600_000).toISOString(),
+    };
+    fetchStatusFeed.mockResolvedValue(
+      feed(
+        status(),
+        incidents({
+          maintenance: [openWindow],
+          serviceOverrides: [serviceOverride('reporting', 'Outage')],
+        }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Outage')).toBeInTheDocument();
+    expect(screen.queryByText('Under maintenance')).not.toBeInTheDocument();
+  });
+
+  it('refuses an all-clear headline while some rows are unknown', async () => {
+    fetchStatusFeed.mockResolvedValue(
+      feed(
+        status({ generatedAt: isoSecondsAgo(3600) }),
+        incidents({ serviceOverrides: [serviceOverride('reporting', 'Operational')] }),
+      ),
+    );
+
+    render(<App />);
+
+    expect(await screen.findByText('Current status unavailable')).toBeInTheDocument();
   });
 });
 

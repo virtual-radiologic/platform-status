@@ -1,35 +1,32 @@
-/** The per-service rows, with maintenance already overlaid onto published health. */
-import type { MaintenanceWindow, PublicServiceStatus } from '../models/types';
-import { displayStateFor } from '../utils/derive';
-import { describeState, StatusIcon, type IconState } from './StatusIcon';
+/** The per-service rows, rendered from states already resolved by the caller. */
+import type { ServiceRow } from '../utils/derive';
+import { describeState, StatusIcon } from './StatusIcon';
 
 interface ServiceListProps {
-  services: PublicServiceStatus[];
-  openWindows: MaintenanceWindow[];
   /**
-   * When the document is stale, every row is shown as unknown rather than as its last published
-   * value. Showing a definite state from a document that stopped updating would present a guess
-   * with the same confidence as a fact.
+   * Rows with their states already resolved (override, then maintenance, then published health,
+   * then unknown). Resolved once by the caller so these rows and the headline above them are
+   * guaranteed to agree.
    */
-  isStale: boolean;
+  rows: ServiceRow[];
 }
 
-export function ServiceList({ services, openWindows, isStale }: ServiceListProps) {
-  if (services.length === 0) {
+export function ServiceList({ rows }: ServiceListProps) {
+  if (rows.length === 0) {
     return <p className="empty">No services are currently published.</p>;
   }
 
   return (
     <ul className="services">
-      {services.map((service) => {
-        const state: IconState = isStale ? 'Unknown' : displayStateFor(service, openWindows);
+      {rows.map(({ service, state }) => {
         const descriptor = describeState(state);
+        const muted = state === 'Unknown';
 
         return (
           <li className="services__row" key={service.key}>
             <span className="services__label">{service.label}</span>
             <span
-              className={isStale ? 'state state--muted' : 'state'}
+              className={muted ? 'state state--muted' : 'state'}
               style={{ ['--state-text' as string]: `var(${descriptor.textColorVariable})` }}
             >
               <StatusIcon state={state} />
