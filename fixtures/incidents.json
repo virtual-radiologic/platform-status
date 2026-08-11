@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-11T17:40:00+00:00",
+  "incidents": [
+    {
+      "id": "2026-08-11-study-routing",
+      "title": "Delayed study routing for some sites",
+      "impact": "Minor",
+      "status": "Monitoring",
+      "affectedServiceKeys": ["ris-pacs-bridge"],
+      "startedAt": "2026-08-11T16:05:00+00:00",
+      "resolvedAt": null,
+      "updates": [
+        {
+          "postedAt": "2026-08-11T16:14:00+00:00",
+          "status": "Investigating",
+          "body": "We are investigating reports of studies taking longer than usual to appear on the worklist. Image ingest is unaffected and no studies have been lost."
+        },
+        {
+          "postedAt": "2026-08-11T16:48:00+00:00",
+          "status": "Identified",
+          "body": "The delay is caused by a backlog on one routing node. We are clearing the backlog and routing new studies around the affected node."
+        },
+        {
+          "postedAt": "2026-08-11T17:31:00+00:00",
+          "status": "Monitoring",
+          "body": "The backlog is cleared and routing times are back to normal. We are monitoring before closing this incident."
+        }
+      ]
+    }
+  ],
+  "maintenance": [
+    {
+      "id": "2026-08-16-reporting-upgrade",
+      "title": "Reporting platform upgrade",
+      "body": "Reporting will be unavailable for short periods during this window. Dictation and study reading are not affected.",
+      "affectedServiceKeys": ["reporting"],
+      "startsAt": "2026-08-16T06:00:00+00:00",
+      "endsAt": "2026-08-16T10:00:00+00:00"
+    }
+  ]
+}

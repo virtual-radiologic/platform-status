@@ -1,0 +1,76 @@
+name: Verify and deploy
+
+# Only `main` carries the site. The published JSON lives on the `data` and `incidents` branches
+# precisely so that publishing status does NOT trigger a build here: GitHub Pages allows about 10
+# builds per hour, and a status change during an incident is the worst possible moment to be
+# queueing behind a build. Data pushes are read by the browser straight from raw.githubusercontent.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Fails the build on a high or critical advisory, per the team testing and security posture.
+      # Moderate findings are reported but do not block, since the dev-server-only advisories that
+      # dominate this dependency tree do not ship in the deployed artifact.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Lint
+        run: npx eslint . --max-warnings 0
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npx vitest run --coverage
+
+      - name: Build
+        run: npx vite build
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
