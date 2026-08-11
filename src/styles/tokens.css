@@ -9,6 +9,7 @@
   --status-outage: #d44848;
   --status-maintenance: #3f90c5;
   --status-unknown: #777777;
+  --status-warning: #ecd73b;
 
   --status-operational-text: #147a56;
   --status-degraded-text: #a85512;
@@ -44,10 +45,10 @@
     --status-maintenance-text: #6fb0dc;
     --status-unknown-text: #9aa5b1;
 
-    --bg: #020c19;
-    --surface: #0d1624;
-    --raised: #17212e;
-    --hover: #212b38;
+    --bg: #0d1116;
+    --surface: #181b21;
+    --raised: #22262b;
+    --hover: #2c3035;
     --border: #3f4750;
 
     --tx1: #e1e1e1;

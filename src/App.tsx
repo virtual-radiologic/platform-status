@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import vradLogoDark from './assets/vrad-platform-logo-dark.png';
+import vradLogo from './assets/vrad-platform-logo.png';
 import { IncidentList } from './components/IncidentList';
 import { MaintenanceList } from './components/MaintenanceList';
 import { Notice } from './components/Notice';
@@ -20,6 +22,9 @@ import { absoluteTime, relativeTime } from './utils/time';
 
 /** How often to re-fetch. The CDN bucket is 30s, so polling faster would only re-read one file. */
 const POLL_INTERVAL_MILLISECONDS = 60_000;
+
+/** Tightened polling while something is degraded or down, capped at the CDN bucket's own refresh rate. */
+const DEGRADED_POLL_INTERVAL_MILLISECONDS = 30_000;
 
 /**
  * How often to advance the page's own clock. Relative times and, more importantly, the staleness
@@ -43,42 +48,21 @@ export function App() {
   const [feed, setFeed] = useState<StatusFeed | null>(null);
   const [isFetching, setIsFetching] = useState(true);
   const [now, setNow] = useState(() => new Date());
+  // Separate from `now`: `now` also advances on every clock tick, so it cannot itself answer "when
+  // did the page last hear from the server."
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const refresh = useCallback(async () => {
     setIsFetching(true);
     try {
       const result = await fetchStatusFeed();
+      const fetchedAt = new Date();
       setFeed(result);
-      setNow(new Date());
+      setNow(fetchedAt);
+      setLastRefreshedAt(fetchedAt);
     } finally {
       setIsFetching(false);
     }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-
-    const pollTimer = window.setInterval(() => void refresh(), POLL_INTERVAL_MILLISECONDS);
-
-    // A tab left open for hours holds a document from hours ago. Re-reading on return means the
-    // reader is not looking at history without being told.
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        void refresh();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-
-    return () => {
-      window.clearInterval(pollTimer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [refresh]);
-
-  useEffect(() => {
-    const clockTimer = window.setInterval(() => setNow(new Date()), CLOCK_TICK_MILLISECONDS);
-
-    return () => window.clearInterval(clockTimer);
   }, []);
 
   const statusDocument = feed?.status.ok === true ? feed.status.value : null;
@@ -124,6 +108,41 @@ export function App() {
   );
   const overall = useMemo(() => deriveOverall(rows), [rows]);
 
+  // Anything other than a clean all-clear polls faster, since that's exactly when a reader wants
+  // the page to catch up quickly. `overall === null` ("cannot say") is treated as the calmer case
+  // rather than the urgent one: it also covers a stale or unreadable feed, where fetching every 30s
+  // instead of every 60s would not produce a different answer any sooner.
+  const isDegraded = overall !== null && overall !== 'AllOperational';
+  const pollIntervalMilliseconds = isDegraded
+    ? DEGRADED_POLL_INTERVAL_MILLISECONDS
+    : POLL_INTERVAL_MILLISECONDS;
+
+  useEffect(() => {
+    void refresh();
+
+    const pollTimer = window.setInterval(() => void refresh(), pollIntervalMilliseconds);
+
+    // A tab left open for hours holds a document from hours ago. Re-reading on return means the
+    // reader is not looking at history without being told.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => {
+      window.clearInterval(pollTimer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refresh, pollIntervalMilliseconds]);
+
+  useEffect(() => {
+    const clockTimer = window.setInterval(() => setNow(new Date()), CLOCK_TICK_MILLISECONDS);
+
+    return () => window.clearInterval(clockTimer);
+  }, []);
+
   const subtitle = (() => {
     if (freshness?.generatedAt == null) {
       return isFetching ? 'Loading the latest published status…' : 'No published status was read.';
@@ -135,8 +154,19 @@ export function App() {
   return (
     <div className="page">
       <header className="masthead">
-        <h1 className="masthead__title">vRad Platform Status</h1>
+        <h1 className="masthead__title">
+          <picture>
+            <source srcSet={vradLogoDark} media="(prefers-color-scheme: dark)" />
+            <img className="masthead__logo" src={vradLogo} alt="The vRad Platform" />
+          </picture>
+          <span className="masthead__title-text">Status</span>
+        </h1>
         <div className="masthead__meta">
+          <span className="masthead__refresh-status">
+            {lastRefreshedAt === null
+              ? 'Refreshing…'
+              : `Last refreshed ${relativeTime(lastRefreshedAt, now)} · auto-refreshing every ${pollIntervalMilliseconds / 1000}s`}
+          </span>
           <button
             type="button"
             className="refresh-button"

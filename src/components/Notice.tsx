@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 export type NoticeTone = 'warning' | 'error' | 'info';
 
 const ACCENTS = new Map<NoticeTone, string>([
-  ['warning', '--status-degraded'],
+  ['warning', '--status-warning'],
   ['error', '--status-outage'],
   ['info', '--status-maintenance'],
 ]);

@@ -42,11 +42,11 @@ export function OverallHero({ overall, subtitle }: OverallHeroProps) {
       }}
       aria-live="polite"
     >
-      <StatusIcon state={iconState} size={26} />
-      <div className="hero__text">
+      <div className="hero__top">
+        <StatusIcon state={iconState} size={26} />
         <h2 className="hero__headline">{headline}</h2>
-        <p className="hero__sub">{subtitle}</p>
       </div>
+      <p className="hero__sub">{subtitle}</p>
     </section>
   );
 }
