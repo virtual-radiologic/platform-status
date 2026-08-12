@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T16:01:08.155667+00:00",
+  "generatedAt": "2026-08-12T16:02:00.8581607+00:00",
   "incidents": [
     {
       "id": "2026-08-12-order-creation-failures",
       "title": "Order Creation Failures",
       "impact": "Critical",
-      "status": "Investigating",
+      "status": "Identified",
       "affectedServiceKeys": [
         "order-creation"
       ],
@@ -17,6 +17,11 @@
           "postedAt": "2026-08-12T16:01:08.155667+00:00",
           "status": "Investigating",
           "body": "We are seeing a high volume of order creation failures. Engineers are investigating."
+        },
+        {
+          "postedAt": "2026-08-12T16:02:00.8581607+00:00",
+          "status": "Identified",
+          "body": "Engineers on call have identified the root cause and are working on a fix."
         }
       ]
     }
