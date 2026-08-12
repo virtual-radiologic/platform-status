@@ -1,7 +1,27 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T15:46:56.5515989+00:00",
-  "incidents": [],
+  "generatedAt": "2026-08-12T15:52:07.9284935+00:00",
+  "incidents": [
+    {
+      "id": "2026-08-12-cisco-outage",
+      "title": "Cisco Outage",
+      "impact": "Critical",
+      "status": "Investigating",
+      "affectedServiceKeys": [
+        "client",
+        "operations"
+      ],
+      "startedAt": "2026-08-12T15:52:07.9284935+00:00",
+      "resolvedAt": null,
+      "updates": [
+        {
+          "postedAt": "2026-08-12T15:52:07.9284935+00:00",
+          "status": "Investigating",
+          "body": "Cisco Outage, expect delays and degraded service for inbound and outbound calls. Engineers are on call with Cisco."
+        }
+      ]
+    }
+  ],
   "serviceOverrides": [],
   "maintenance": []
 }
