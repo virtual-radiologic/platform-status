@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T14:13:36.9775919+00:00",
+  "generatedAt": "2026-08-12T14:13:39.6906138+00:00",
   "incidents": [],
   "serviceOverrides": [
     {
@@ -10,17 +10,5 @@
       "expiresAt": "2026-08-12T22:11:33.4487582+00:00"
     }
   ],
-  "maintenance": [
-    {
-      "id": "2026-08-12-j",
-      "title": "j",
-      "body": "no downtime",
-      "affectedServiceKeys": [
-        "imaging",
-        "order-creation"
-      ],
-      "startsAt": "2026-08-12T05:12:00+00:00",
-      "endsAt": "2026-08-28T14:16:00+00:00"
-    }
-  ]
+  "maintenance": []
 }
