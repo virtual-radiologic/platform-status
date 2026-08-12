@@ -5,7 +5,7 @@
     {
       "id": "2026-08-12-order-creation-failures",
       "title": "Order Creation Failures",
-      "impact": "Critical",
+      "impact": "Minor",
       "status": "Resolved",
       "affectedServiceKeys": [
         "order-creation"
