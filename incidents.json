@@ -5,7 +5,7 @@
     {
       "id": "2026-08-12-cisco-outage",
       "title": "Cisco Outage",
-      "impact": "Minor",
+      "impact": "Critical",
       "status": "Investigating",
       "affectedServiceKeys": [
         "operations",
