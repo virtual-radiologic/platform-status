@@ -1,18 +1,7 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T16:31:27.4400017+00:00",
+  "generatedAt": "2026-08-12T16:31:44.7515642+00:00",
   "incidents": [],
   "serviceOverrides": [],
-  "maintenance": [
-    {
-      "id": "2026-08-12-mndc-migration",
-      "title": "MNDC Migration",
-      "body": "we\u0027re doing things with MNDC",
-      "affectedServiceKeys": [
-        "imaging"
-      ],
-      "startsAt": "2026-08-12T16:00:00+00:00",
-      "endsAt": "2026-08-18T17:30:00+00:00"
-    }
-  ]
+  "maintenance": []
 }
