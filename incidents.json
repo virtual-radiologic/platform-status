@@ -1,7 +1,20 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T14:13:51.7284165+00:00",
+  "generatedAt": "2026-08-12T14:51:46.0994658+00:00",
   "incidents": [],
   "serviceOverrides": [],
-  "maintenance": []
+  "maintenance": [
+    {
+      "id": "2026-08-18-ris-release",
+      "title": "RIS Release",
+      "body": "Expect minimal to no downtime",
+      "affectedServiceKeys": [
+        "ris",
+        "radiologist",
+        "operations"
+      ],
+      "startsAt": "2026-08-18T16:00:00+00:00",
+      "endsAt": "2026-08-18T17:00:00+00:00"
+    }
+  ]
 }
