@@ -5,6 +5,7 @@
  * design exists to prevent, so it is asserted rather than assumed.
  */
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { IncidentDocument, PublicStatusDocument } from './models/types';
@@ -170,6 +171,44 @@ describe('stale document', () => {
 
     await waitFor(() => expect(screen.getAllByText('Status unknown')).toHaveLength(2));
     expect(screen.queryByText('Operational')).not.toBeInTheDocument();
+  });
+});
+
+describe('a slower read never overwrites a newer one', () => {
+  it('keeps the degraded state when a later fetch returns older cached data', async () => {
+    // The bug this pins, seen in production: press Refresh, watch a service turn Degraded, then see
+    // it snap back to Operational a moment later as a background poll landed with five-minute-old
+    // bytes from the raw CDN. Older data is not news, whoever asked for it.
+    const user = userEvent.setup();
+    const clients = { current: 0 };
+
+    fetchStatusFeed.mockImplementation(() => {
+      clients.current += 1;
+      return Promise.resolve(
+        clients.current === 1
+          ? feed(
+              status({
+                generatedAt: isoSecondsAgo(10),
+                services: [
+                  { key: 'imaging', label: 'Image Ingest', state: 'Degraded' },
+                  { key: 'reporting', label: 'Reporting', state: 'Operational' },
+                ],
+              }),
+            )
+          : // Older document, all clear - exactly what the cached path serves.
+            feed(status({ generatedAt: isoSecondsAgo(600) })),
+      );
+    });
+
+    render(<App />);
+
+    expect(await screen.findByText('Degraded performance')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Refresh/ }));
+
+    await waitFor(() => expect(fetchStatusFeed.mock.calls.length).toBeGreaterThan(1));
+    expect(screen.getByText('Degraded performance')).toBeInTheDocument();
+    expect(screen.getByText('Some systems degraded')).toBeInTheDocument();
   });
 });
 

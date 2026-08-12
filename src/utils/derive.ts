@@ -5,10 +5,8 @@
 import type {
   DisplayState,
   Incident,
-  IncidentImpact,
   MaintenanceWindow,
   PublicOverallState,
-  PublicServiceState,
   PublicServiceStatus,
   PublicStatusDocument,
   ServiceOverride,
@@ -112,6 +110,16 @@ export function activeOverrides(overrides: ServiceOverride[], now: Date): Servic
  *  3. the published health, when the document is fresh;
  *  4. unknown, when it is stale.
  *
+ * INCIDENTS ARE DELIBERATELY ABSENT FROM THIS LIST. An incident is communication: it names the
+ * services it affects so a reader can see what is impacted, and its text says what is happening. It
+ * does not set state.
+ *
+ * That was tried the other way and reverted. Deriving state from an open incident's impact gave the
+ * page two competing sources for the same fact - what Nexus measures and what an incident implies -
+ * which is a race, not a feature, and it made posting an incident quietly change numbers the operator
+ * had not asked to change. There is exactly ONE way to override what Nexus reports, and it is the
+ * override section, which says so on the tin and carries an expiry.
+ *
  * An override outranks maintenance because it is the later deliberate act: if something breaks
  * during a planned window, an operator saying "this is an outage" should not be masked by the
  * window that was scheduled hours earlier.
@@ -129,84 +137,17 @@ export function displayStateFor(
   openWindows: MaintenanceWindow[],
   unexpiredOverrides: ServiceOverride[],
   isStale: boolean,
-  openIncidents: Incident[] = [],
 ): RowState {
   const override = unexpiredOverrides.find((candidate) => candidate.serviceKey === service.key);
   if (override !== undefined) {
     return override.state;
   }
 
-  const base: RowState = isStale ? 'Unknown' : service.state;
-  const fromIncident = incidentImpliedState(service.key, openIncidents);
-
-  if (fromIncident !== null) {
-    // An open incident naming this service outranks a maintenance window: something is actually
-    // wrong, which matters more to a client than the fact that work was planned.
-    //
-    // Against health it is a FLOOR, not a replacement - the worse of the two wins. Otherwise a
-    // Minor incident filed against a service Nexus can see is genuinely down would quietly
-    // downgrade the page from Outage to Degraded, which is the one direction a status page must
-    // never move on its own.
-    return base === 'Unknown' ? fromIncident : worseOf(base, fromIncident);
-  }
-
   if (openWindows.some((window) => window.affectedServiceKeys.includes(service.key))) {
     return 'UnderMaintenance';
   }
 
-  return base;
-}
-
-/**
- * The state an open incident implies for a service, or null when no open incident names it.
- *
- * Deriving this rather than making the operator set it separately is what keeps the page from
- * contradicting itself. Posting an incident about a service and leaving that service reading
- * "Operational" tells a client two opposite things at once, and expecting whoever is mid-outage to
- * remember a second action is not a plan.
- *
- * It also needs no expiry. The implied state lasts exactly as long as the incident is open and
- * clears the moment it is resolved, so unlike a manual override it cannot drift out of step with
- * what the incident says.
- *
- * `None` implies nothing: that impact exists precisely for an informational notice that is not
- * claiming any service is affected.
- */
-export function incidentImpliedState(
-  serviceKey: string,
-  openIncidents: Incident[],
-): PublicServiceState | null {
-  const implied = openIncidents
-    .filter((incident) => incident.affectedServiceKeys.includes(serviceKey))
-    .map((incident) => IMPACT_STATE.get(incident.impact) ?? null)
-    .filter((state): state is PublicServiceState => state !== null);
-
-  if (implied.length === 0) {
-    return null;
-  }
-
-  // Worst-wins across several incidents naming the same service.
-  return implied.reduce((worst, candidate) => worseOf(worst, candidate) as PublicServiceState);
-}
-
-/** What each impact level asserts about a service's state. */
-const IMPACT_STATE = new Map<IncidentImpact, PublicServiceState | null>([
-  ['None', null],
-  ['Minor', 'Degraded'],
-  ['Major', 'Outage'],
-  ['Critical', 'Outage'],
-]);
-
-const SEVERITY = new Map<RowState, number>([
-  ['Operational', 0],
-  ['UnderMaintenance', 0],
-  ['Unknown', 1],
-  ['Degraded', 2],
-  ['Outage', 3],
-]);
-
-function worseOf(left: RowState, right: RowState): RowState {
-  return (SEVERITY.get(right) ?? 0) > (SEVERITY.get(left) ?? 0) ? right : left;
+  return isStale ? 'Unknown' : service.state;
 }
 
 /** What a row ends up showing, once every source has been resolved. */
@@ -224,11 +165,10 @@ export function resolveRows(
   openWindows: MaintenanceWindow[],
   unexpiredOverrides: ServiceOverride[],
   isStale: boolean,
-  openIncidents: Incident[] = [],
 ): ServiceRow[] {
   return services.map((service) => ({
     service,
-    state: displayStateFor(service, openWindows, unexpiredOverrides, isStale, openIncidents),
+    state: displayStateFor(service, openWindows, unexpiredOverrides, isStale),
   }));
 }
 

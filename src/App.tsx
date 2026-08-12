@@ -7,7 +7,12 @@ import { MaintenanceList } from './components/MaintenanceList';
 import { Notice } from './components/Notice';
 import { OverallHero } from './components/OverallHero';
 import { ServiceList } from './components/ServiceList';
-import { fetchStatusFeed, type FeedFailure, type StatusFeed } from './services/statusFeed';
+import {
+  fetchStatusFeed,
+  type FeedFailure,
+  type FeedResult,
+  type StatusFeed,
+} from './services/statusFeed';
 import {
   activeMaintenance,
   activeOverrides,
@@ -32,6 +37,53 @@ const DEGRADED_POLL_INTERVAL_MILLISECONDS = 30_000;
  * will ever arrive to trigger a re-render.
  */
 const CLOCK_TICK_MILLISECONDS = 20_000;
+
+/**
+ * Merges a newly fetched feed over the one on screen, per document, NEVER GOING BACKWARDS IN TIME.
+ *
+ * The page reads through two paths of very different latency: a manual refresh gets the current
+ * commit from the API, while background polling can be five minutes behind on the raw CDN. Without
+ * this guard the slower path overwrites the faster one, which showed up exactly as reported: press
+ * Refresh, watch a service turn Degraded, and see it snap back to Operational moments later when a
+ * poll landed with cached bytes.
+ *
+ * The immediate trigger was subtle. Going Degraded flips the poll interval, which re-runs the polling
+ * effect, whose first act is a fetch - so arriving at the truth was itself what scheduled the stale
+ * read that discarded it. That specific loop is fixed separately, but a page that shows live status
+ * should not depend on getting its effect dependencies exactly right: older data is not news, whoever
+ * asked for it.
+ *
+ * Applies only between two SUCCESSFUL reads. A newly failed read still replaces a good one, because
+ * "the feed is unreachable" is something the reader needs to be told rather than hidden behind data
+ * that is quietly ageing.
+ */
+function keepNewer(previous: StatusFeed | null, incoming: StatusFeed): StatusFeed {
+  if (previous === null) {
+    return incoming;
+  }
+
+  return {
+    status: newerOf(previous.status, incoming.status),
+    incidents: newerOf(previous.incidents, incoming.incidents),
+  };
+}
+
+function newerOf<T extends { generatedAt: string }>(
+  previous: FeedResult<T>,
+  incoming: FeedResult<T>,
+): FeedResult<T> {
+  if (!previous.ok || !incoming.ok) {
+    return incoming;
+  }
+
+  const previousAt = Date.parse(previous.value.generatedAt);
+  const incomingAt = Date.parse(incoming.value.generatedAt);
+  if (Number.isNaN(previousAt) || Number.isNaN(incomingAt)) {
+    return incoming;
+  }
+
+  return incomingAt >= previousAt ? incoming : previous;
+}
 
 function describeFailure(failure: FeedFailure): string {
   switch (failure.kind) {
@@ -64,7 +116,7 @@ export function App() {
     try {
       const result = await fetchStatusFeed(Date.now(), { fresh });
       const fetchedAt = new Date();
-      setFeed(result);
+      setFeed((previous) => keepNewer(previous, result));
       setNow(fetchedAt);
       setLastRefreshedAt(fetchedAt);
     } finally {
@@ -110,8 +162,8 @@ export function App() {
   // Resolved once, so the rows and the headline above them cannot contradict each other. Depends on
   // `statusDocument` rather than the `services` local for the same empty-array-identity reason.
   const rows = useMemo(
-    () => resolveRows(statusDocument?.services ?? [], openWindows, overrides, isStale, active),
-    [statusDocument, openWindows, overrides, isStale, active],
+    () => resolveRows(statusDocument?.services ?? [], openWindows, overrides, isStale),
+    [statusDocument, openWindows, overrides, isStale],
   );
   const overall = useMemo(() => deriveOverall(rows), [rows]);
 
@@ -124,13 +176,16 @@ export function App() {
     ? DEGRADED_POLL_INTERVAL_MILLISECONDS
     : POLL_INTERVAL_MILLISECONDS;
 
+  // The FIRST load, and a re-read when the tab is returned to. Deliberately separate from the timer
+  // below: the timer's interval changes whenever the platform becomes degraded, and while these lived
+  // in one effect that change tore the effect down and rebuilt it, firing an immediate fetch. Since
+  // becoming degraded is what changes the interval, arriving at the truth was itself what triggered
+  // the extra read that overwrote it with cached bytes.
+  //
+  // A tab left open for hours holds a document from hours ago, so returning to it re-reads.
   useEffect(() => {
     void refresh();
 
-    const pollTimer = window.setInterval(() => void refresh(), pollIntervalMilliseconds);
-
-    // A tab left open for hours holds a document from hours ago. Re-reading on return means the
-    // reader is not looking at history without being told.
     const onVisible = () => {
       if (document.visibilityState === 'visible') {
         void refresh();
@@ -138,10 +193,14 @@ export function App() {
     };
     document.addEventListener('visibilitychange', onVisible);
 
-    return () => {
-      window.clearInterval(pollTimer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refresh]);
+
+  // The poll timer on its own, so changing its interval only reschedules and never re-fetches.
+  useEffect(() => {
+    const pollTimer = window.setInterval(() => void refresh(), pollIntervalMilliseconds);
+
+    return () => window.clearInterval(pollTimer);
   }, [refresh, pollIntervalMilliseconds]);
 
   useEffect(() => {
