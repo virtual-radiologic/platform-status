@@ -11,6 +11,7 @@ import {
   activeMaintenance,
   activeOverrides,
   assessFreshness,
+  TRANSPORT_LAG_ALLOWANCE_SECONDS,
   deriveOverall,
   displayStateFor,
   openIncidents,
@@ -77,9 +78,21 @@ describe('assessFreshness', () => {
     expect(freshness.isStale).toBe(false);
   });
 
-  it('treats a document past its tolerance as stale', () => {
-    const freshness = assessFreshness(statusDocument('2026-08-11T11:50:00Z'), NOW);
+  it('widens the threshold by the transport lag the delivery path can add', () => {
+    // The published tolerance is 300s, but raw.githubusercontent.com can serve content 300s old
+    // regardless, so the page tolerates 600s. Without this a healthy platform would intermittently
+    // warn, since a 120s heartbeat plus 300s of CDN lag exceeds 300s on its own.
+    const freshness = assessFreshness(statusDocument('2026-08-11T11:53:00Z'), NOW);
 
+    expect(freshness.thresholdSeconds).toBe(300 + TRANSPORT_LAG_ALLOWANCE_SECONDS);
+    expect(freshness.ageSeconds).toBe(420);
+    expect(freshness.isStale).toBe(false);
+  });
+
+  it('treats a document past the widened tolerance as stale', () => {
+    const freshness = assessFreshness(statusDocument('2026-08-11T11:40:00Z'), NOW);
+
+    expect(freshness.ageSeconds).toBe(1200);
     expect(freshness.isStale).toBe(true);
   });
 

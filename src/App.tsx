@@ -52,10 +52,17 @@ export function App() {
   // did the page last hear from the server."
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
-  const refresh = useCallback(async () => {
+  /**
+   * `fresh` takes the api.github.com path, which is the only one that returns the current commit
+   * immediately. Reserved for a button press: the API allows 60 requests an hour per client IP and a
+   * refresh spends two, so a timer would exhaust the budget and leave the button broken for whoever
+   * pressed it next. Background polling therefore stays on the cached path, which is why a press does
+   * something a wait would not.
+   */
+  const refresh = useCallback(async (fresh = false) => {
     setIsFetching(true);
     try {
-      const result = await fetchStatusFeed();
+      const result = await fetchStatusFeed(Date.now(), { fresh });
       const fetchedAt = new Date();
       setFeed(result);
       setNow(fetchedAt);
@@ -170,7 +177,7 @@ export function App() {
           <button
             type="button"
             className="refresh-button"
-            onClick={() => void refresh()}
+            onClick={() => void refresh(true)}
             disabled={isFetching}
           >
             {isFetching ? 'Refreshing…' : 'Refresh'}
@@ -192,8 +199,8 @@ export function App() {
       {statusDocument !== null && freshness !== null && freshness.isStale && (
         <Notice tone="warning" title="This status may be out of date">
           The last published update was {relativeTime(freshness.generatedAt ?? now, now)}, which is
-          longer than the expected {statusDocument.staleAfterSeconds}-second interval. Service
-          states are shown as unknown until publishing resumes
+          longer than the expected {freshness.thresholdSeconds}-second interval. Service states are
+          shown as unknown until publishing resumes
           {overrides.length > 0 ? ', except where a status has been confirmed manually' : ''}.
         </Notice>
       )}

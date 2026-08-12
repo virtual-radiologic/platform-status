@@ -15,15 +15,38 @@ import type {
 } from '../models/types';
 import { isWithinWindow, parseInstant } from './time';
 
-/** How the published document's age compares to its own declared tolerance. */
+/** How the published document's age compares to the threshold this page will tolerate. */
 export interface Freshness {
   ageSeconds: number;
   isStale: boolean;
   generatedAt: Date | null;
+  /** The threshold actually applied: the document's own tolerance plus this page's transport lag. */
+  thresholdSeconds: number;
 }
 
 /**
- * Judges the document's age against the threshold it carries.
+ * How much lag the DELIVERY PATH can add, on top of the publisher's own write interval.
+ *
+ * Background polling reads through raw.githubusercontent.com, which caches per path for up to 300s
+ * and ignores cache-busters (measured: `x-cache: HIT` on unique query strings, and request-level
+ * `Cache-Control: no-cache` ignored too). So a browser can legitimately observe a document 300s
+ * older than the publisher's newest write.
+ *
+ * This allowance lives HERE rather than in the publisher's `staleAfterSeconds` on purpose. That
+ * setting means "how often I write", which is all Nexus can honestly know. How long the bytes then
+ * take to arrive is a fact about this page's transport, which only this page knows - and which
+ * changes if the delivery path ever does. Baking it into the publisher's number would have coupled a
+ * backend config value to a CDN's behaviour.
+ *
+ * Without it the arithmetic broke: a 120s heartbeat plus up to 300s of lag is up to 420s observed,
+ * past a 300s published threshold, so a HEALTHY platform would intermittently announce "this status
+ * may be out of date" and grey every service to unknown. Crying wolf teaches readers to ignore the
+ * one warning that matters.
+ */
+export const TRANSPORT_LAG_ALLOWANCE_SECONDS = 300;
+
+/**
+ * Judges the document's age against the threshold it carries, widened by the transport allowance.
  *
  * This is the single most important computation on the page. If publishing stops, GitHub keeps
  * serving the last document forever, and every service in it will usually read "Operational".
@@ -31,16 +54,22 @@ export interface Freshness {
  * an outage, which is worse than showing nothing at all.
  */
 export function assessFreshness(document: PublicStatusDocument, now: Date): Freshness {
+  const thresholdSeconds = document.staleAfterSeconds + TRANSPORT_LAG_ALLOWANCE_SECONDS;
   const generatedAt = parseInstant(document.generatedAt);
   if (generatedAt === null) {
     // An unreadable timestamp cannot be shown to be recent, so it is treated as stale. Failing
     // the other way would let a malformed document present itself as current.
-    return { ageSeconds: Number.POSITIVE_INFINITY, isStale: true, generatedAt: null };
+    return {
+      ageSeconds: Number.POSITIVE_INFINITY,
+      isStale: true,
+      generatedAt: null,
+      thresholdSeconds,
+    };
   }
 
   const ageSeconds = Math.max(0, (now.getTime() - generatedAt.getTime()) / 1000);
 
-  return { ageSeconds, isStale: ageSeconds > document.staleAfterSeconds, generatedAt };
+  return { ageSeconds, isStale: ageSeconds > thresholdSeconds, generatedAt, thresholdSeconds };
 }
 
 /** The maintenance windows currently open. */

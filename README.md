@@ -51,6 +51,29 @@ incident. Keeping data off `main` means Pages only rebuilds when the site itself
 browser reads the data from `raw.githubusercontent.com`, which sends
 `Access-Control-Allow-Origin: *` so no proxy is needed.
 
+### Two read paths, because raw is cached and cannot be busted
+
+**Background polling reads `raw.githubusercontent.com`.** Unlimited and anonymous, but it caches per
+path for up to 300 seconds and **ignores query-string cache-busters**. That was measured, not
+assumed: `x-cache: HIT` on three unique query strings from three different cache nodes, and a
+request-level `Cache-Control: no-cache` is ignored too. So this path can be five minutes behind.
+
+**A manual refresh reads `api.github.com`**, which does honour a cache-buster and returns the current
+commit immediately. Verified on a scratch branch: write `v2`, and within the same second the API with
+a buster returns `v2` while the API without one and raw both still return `v1`.
+
+The split is forced by the API's rate limit: **60 requests per hour per client IP**, unauthenticated,
+and each refresh reads two documents. That is ample for a button a person presses and far too little
+for a timer, especially since everyone behind one corporate egress shares the budget. Authenticating
+is not an option, because a token in a public page is a published token. A rate-limited API read falls
+back to raw, so the worst case is a refresh that behaves like a wait.
+
+This is also why the page tolerates more staleness than the publisher declares. See
+`TRANSPORT_LAG_ALLOWANCE_SECONDS`: the publisher's `staleAfterSeconds` means "how often I write",
+which is all it can honestly know, and the page adds its own transport lag on top. A 120-second
+heartbeat plus 300 seconds of CDN lag is 420 seconds observed, so judging against the published 300
+made a healthy platform intermittently announce that it might be out of date.
+
 ## Repository setup
 
 One-time steps after cloning:
