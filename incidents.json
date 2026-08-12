@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-08-12T14:11:05.1748685+00:00",
+  "generatedAt": "2026-08-12T14:11:33.4487582+00:00",
   "incidents": [
     {
       "id": "2026-08-12-test",
@@ -22,6 +22,13 @@
       ]
     }
   ],
-  "serviceOverrides": [],
+  "serviceOverrides": [
+    {
+      "serviceKey": "order-creation",
+      "state": "Outage",
+      "setAt": "2026-08-12T14:11:33.4487582+00:00",
+      "expiresAt": "2026-08-12T22:11:33.4487582+00:00"
+    }
+  ],
   "maintenance": []
 }
