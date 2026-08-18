@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-18T21:17:53.7454193+00:00",
+  "staleAfterSeconds": 300,
+  "overall": "AllOperational",
+  "services": [
+    {
+      "key": "imaging",
+      "label": "Imaging",
+      "state": "Operational"
+    },
+    {
+      "key": "order-creation",
+      "label": "Order Creation",
+      "state": "Operational"
+    },
+    {
+      "key": "ris",
+      "label": "RIS",
+      "state": "Operational"
+    },
+    {
+      "key": "radiologist",
+      "label": "Radiologist",
+      "state": "Operational"
+    },
+    {
+      "key": "reporting",
+      "label": "Reporting",
+      "state": "Operational"
+    },
+    {
+      "key": "distribution",
+      "label": "Distribution",
+      "state": "Operational"
+    },
+    {
+      "key": "client",
+      "label": "Client",
+      "state": "Operational"
+    },
+    {
+      "key": "operations",
+      "label": "Operations",
+      "state": "Operational"
+    },
+    {
+      "key": "eclipse",
+      "label": "Eclipse",
+      "state": "Operational"
+    }
+  ]
+}
